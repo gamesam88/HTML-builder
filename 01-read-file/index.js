@@ -7,4 +7,5 @@ let stream = fs.createReadStream(textPath)
 
 stream.on('data', (data) => {
     console.log(data.toString())
+
 })
