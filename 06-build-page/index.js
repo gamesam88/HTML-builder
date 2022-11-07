@@ -2,87 +2,83 @@ const fs = require('fs')
 const path = require('path')
 
 
-function streamToString(stream, callback) {
+async function streamToString(stream, callback) {
     const chunks = []
-    stream.on('data', (chunk) => {
+    await stream.on('data', (chunk) => {
         chunks.push(chunk.toString());
     })
-    stream.on('end', () => {
+    await stream.on('end', () => {
         callback(chunks.join(''))
     })
 }
 
-// ------ create HTML -----
-
-let stream = fs.createReadStream('./06-build-page/template.html')
-
-let result = ''
-
-fs.mkdir('./06-build-page/project-dist', { recursive: true }, (err) => {
-    if (err) {
-        console.error(err)
-    }
-})
-
-streamToString(stream, (template) => {
-
-    fs.readFile('./06-build-page/components/header.html', 'utf8', function (err, data) {
+async function clear() {
+    await fs.promises.rm(path.resolve(__dirname, 'project-dist'), { recursive: true, force: true })
+    await fs.promises.mkdir(path.resolve(__dirname, 'project-dist/assets'), { recursive: true }, (err) => {
         if (err) {
-            return console.log(err);
+            console.error(err)
         }
-        result = template.replace(/{{header}}/g, data);
+    })
+}
 
-        fs.readFile('./06-build-page/components/articles.html', 'utf8', function (err, data) {
-            if (err) {
-                return console.log(err);
-            }
-            result = result.replace(/{{articles}}/g, data);
+let stream = fs.createReadStream(path.resolve(__dirname, 'template.html'))
 
-            fs.readFile('./06-build-page/components/footer.html', 'utf8', function (err, data) {
-                if (err) {
-                    return console.log(err);
-                }
-                result = result.replace(/{{footer}}/g, data);
+streamToString(stream, async (template) => {
 
-                fs.writeFile('./06-build-page/project-dist/index.html', result, (err) => {
-                    if (err) {
-                        console.error(err)
-                    }
+    await clear()
 
-                })
-            });
-        });
-    });
-})
+    // ------ create HTML -----
 
-// ------- create CSS ---------
+    let result = template
+    let tags = []
 
-fs.rm(path.resolve(`06-build-page/project-dist/`, 'style.css'), {
-    recursive: true
-}, () => { })
+    const components = await fs.promises.readdir(path.resolve('06-build-page/components'), {
+        withFileTypes: true,
+        encoding: 'utf8'
+    })
 
-fs.readdir(path.join(__dirname, 'styles'), {
-    withFileTypes: true,
-    encoding: 'utf8'
-}, (error, files) => {
-    if (error) throw error
+    components.forEach(element => {
+        const postFix = path.extname(element.name)
+        if (element.isFile() && postFix === '.html') {
+            tags.push(element.name)
+        }
+    })
 
-    files.forEach(element => {
+    for (let element of tags) {
+
+        let file = await fs.promises.readFile(path.resolve('06-build-page/components/', element))
+        result = result.replace(`{{${path.basename(element, '.html')}}}`, file);
+    }
+
+    await fs.promises.writeFile('./06-build-page/project-dist/index.html', result, (err) => {
+        if (err) {
+            console.error(err)
+        }
+    })
+
+    // ------- create CSS ---------
+
+    let styleFiles = await fs.promises.readdir(path.join(__dirname, 'styles'), {
+        withFileTypes: true,
+        encoding: 'utf8'
+    })
+
+    for (let element of styleFiles) {
         const postFix = path.extname(element.name)
         if (element.isFile() && postFix === '.css') {
 
             const readStream = fs.createReadStream(path.resolve(`06-build-page/styles/`, element.name))
 
-            readStream.on('data', (chunk) => {
-
-                fs.appendFile(path.resolve(`06-build-page/project-dist/`, 'style.css'), chunk, 'utf8', (err) => {
+            readStream.on('data', async (chunk) => {
+                await fs.promises.appendFile(path.resolve(`06-build-page/project-dist/`, 'style.css'), chunk, 'utf8', (err) => {
                     if (err) throw err
                 })
             })
         }
-    })
-})
+    }
 
+    copyDir('assets', 'project-dist/assets/')
+})
 
 // ------- create Assets ---------
 
@@ -128,7 +124,7 @@ async function copyDir(dirFrom, dirTo) {
     })
 }
 
-copyDir('assets', 'project-dist/assets/')
+
 
 
 
