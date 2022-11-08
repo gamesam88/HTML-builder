@@ -4,6 +4,8 @@ const path = require('path')
 async function copyDir() {
     const newFolder = path.join(__dirname, 'files-copy')
 
+    await fs.promises.rm(newFolder, { recursive: true, force: true })
+
     await fs.promises.mkdir(newFolder, { recursive: true })
 
     fs.readdir(path.join(__dirname, 'files'), 'utf8', (error, files) => {
